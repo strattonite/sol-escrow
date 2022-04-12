@@ -15,6 +15,7 @@ pub fn create_offer(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
     offer_data: OfferData,
+    index_seed: [u8; 28],
 ) -> Result<(), ProgramError> {
     let accounts = &mut accounts.iter();
     let seller = next_account_info(accounts)?;
@@ -27,7 +28,7 @@ pub fn create_offer(
     let temp_info = Account::unpack_from_slice(*seller_temp.try_borrow_data()?)?;
     let receive_info = Account::unpack_from_slice(*seller_receive.try_borrow_data()?)?;
     let seed = offer_data.get_seed();
-    let (pda, bump) = Pubkey::find_program_address(&[&seed], program_id);
+    let (pda, bump) = Pubkey::find_program_address(&[&seed, &index_seed], program_id);
     let min_rent = rent::Rent::get()?.minimum_balance(EscrowPDA::LEN);
 
     msg!("asserting validity...");
@@ -72,7 +73,7 @@ pub fn create_offer(
     invoke_signed(
         &create_ix,
         &[seller.clone(), escrow_pda.clone(), sys_program.clone()],
-        &[&[&seed, &[bump]]],
+        &[&[&seed, &index_seed, &[bump]]],
     )?;
 
     msg!("transferring temp ownership to PDA...");
@@ -100,7 +101,11 @@ pub fn create_offer(
     Ok(())
 }
 
-pub fn accept_offer(program_id: &Pubkey, accounts: &[AccountInfo]) -> Result<(), ProgramError> {
+pub fn accept_offer(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    index_seed: [u8; 28],
+) -> Result<(), ProgramError> {
     let accounts = &mut accounts.iter();
     let buyer = next_account_info(accounts)?;
     let strike_acc = next_account_info(accounts)?;
@@ -116,7 +121,7 @@ pub fn accept_offer(program_id: &Pubkey, accounts: &[AccountInfo]) -> Result<(),
     let receive_info = Account::unpack_from_slice(*buyer_receive.try_borrow_data()?)?;
     let escrow_data = EscrowPDA::unpack_from_slice(*escrow_pda.try_borrow_data()?)?;
     let seed = escrow_data.offer_data.get_seed();
-    let (_pda, bump) = Pubkey::find_program_address(&[&seed], program_id);
+    let (_pda, bump) = Pubkey::find_program_address(&[&seed, &index_seed], program_id);
 
     msg!("asserting validity...");
     if !system_program::check_id(sys_program.key) {
@@ -169,7 +174,7 @@ pub fn accept_offer(program_id: &Pubkey, accounts: &[AccountInfo]) -> Result<(),
             buyer_receive.clone(),
             escrow_pda.clone(),
         ],
-        &[&[&seed, &[bump]]],
+        &[&[&seed, &index_seed, &[bump]]],
     )?;
 
     msg!("transferring strike to seller");
@@ -197,7 +202,7 @@ pub fn accept_offer(program_id: &Pubkey, accounts: &[AccountInfo]) -> Result<(),
     invoke_signed(
         &close_ix,
         &[seller_temp.clone(), seller.clone(), escrow_pda.clone()],
-        &[&[&seed, &[bump]]],
+        &[&[&seed, &index_seed, &[bump]]],
     )?;
     msg!("closing PDA");
     *escrow_pda.data.borrow_mut() = &mut [];
@@ -206,7 +211,11 @@ pub fn accept_offer(program_id: &Pubkey, accounts: &[AccountInfo]) -> Result<(),
     Ok(())
 }
 
-pub fn cancel_offer(program_id: &Pubkey, accounts: &[AccountInfo]) -> Result<(), ProgramError> {
+pub fn cancel_offer(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    index_seed: [u8; 28],
+) -> Result<(), ProgramError> {
     let accounts = &mut accounts.iter();
     let seller = next_account_info(accounts)?;
     let seller_temp = next_account_info(accounts)?;
@@ -217,7 +226,7 @@ pub fn cancel_offer(program_id: &Pubkey, accounts: &[AccountInfo]) -> Result<(),
 
     let escrow_data = EscrowPDA::unpack_from_slice(*escrow_pda.try_borrow_data()?)?;
     let seed = escrow_data.offer_data.get_seed();
-    let (_pda, bump) = Pubkey::find_program_address(&[&seed], program_id);
+    let (_pda, bump) = Pubkey::find_program_address(&[&seed, &index_seed], program_id);
 
     msg!("asserting validity...");
     if !system_program::check_id(sys_program.key) {
@@ -253,7 +262,7 @@ pub fn cancel_offer(program_id: &Pubkey, accounts: &[AccountInfo]) -> Result<(),
     invoke_signed(
         &ix,
         &[seller_temp.clone(), seller.clone(), escrow_pda.clone()],
-        &[&[&seed, &[bump]]],
+        &[&[&seed, &index_seed, &[bump]]],
     )?;
 
     msg!("closing PDA");

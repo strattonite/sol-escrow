@@ -2,7 +2,7 @@
 
 use sol_escrow::{
     entrypoint::process_instruction,
-    state::{EscrowPDA, OfferData},
+    state::{get_seed, EscrowPDA, OfferData},
 };
 use solana_program_test::*;
 use solana_sdk::{
@@ -16,7 +16,6 @@ use solana_sdk::{
 };
 use spl_associated_token_account::{create_associated_token_account, get_associated_token_address};
 use spl_token::state::Account;
-use std::convert::TryInto;
 
 const MINT_SIZE: u64 = 82;
 
@@ -34,6 +33,7 @@ struct TestEnv {
     mint_1: keypair::Keypair,
     mint_2: keypair::Keypair,
     ctx: ProgramTestContext,
+    index_seed: [u8; 41],
 }
 
 #[tokio::test]
@@ -242,6 +242,9 @@ async fn init_env() -> TestEnv {
         mint_2: s2,
     };
 
+    let mut index_seed = [0; 41];
+    index_seed[..32].copy_from_slice(&seller.main.pubkey().to_bytes());
+
     TestEnv {
         buyer,
         seller,
@@ -250,6 +253,7 @@ async fn init_env() -> TestEnv {
         seller_temp,
         program_key,
         ctx,
+        index_seed,
     }
 }
 
@@ -261,8 +265,10 @@ async fn create_offer(test_env: &mut TestEnv) -> EscrowPDA {
         strike_qty: 5,
     };
 
-    let (pda, _bump) =
-        Pubkey::find_program_address(&[&offer_data.get_seed()], &test_env.program_key.pubkey());
+    let (pda, _bump) = Pubkey::find_program_address(
+        &[&offer_data.get_seed(), &get_seed(&test_env.index_seed)],
+        &test_env.program_key.pubkey(),
+    );
 
     let accounts = vec![
         AccountMeta {
@@ -297,10 +303,10 @@ async fn create_offer(test_env: &mut TestEnv) -> EscrowPDA {
         },
     ];
 
-    let mut ixd = Vec::with_capacity(81);
-    ixd.push(0);
-    ixd.extend_from_slice(&offer_data.to_bytes());
-    let instruction_data: [u8; 81] = ixd.try_into().unwrap();
+    let mut instruction_data = [0; 122];
+    instruction_data[0] = 0;
+    instruction_data[1..81].copy_from_slice(&offer_data.to_bytes());
+    instruction_data[81..].copy_from_slice(&test_env.index_seed);
 
     println!("sending create_offer transaction");
     let ix =
@@ -376,7 +382,10 @@ async fn get_token_balance(test_env: &mut TestEnv, pk: Pubkey) -> u64 {
 
 async fn accept_offer(test_env: &mut TestEnv, escrow_pda: EscrowPDA) {
     let seed = escrow_pda.offer_data.get_seed();
-    let (pda, _bump) = Pubkey::find_program_address(&[&seed], &test_env.program_key.pubkey());
+    let (pda, _bump) = Pubkey::find_program_address(
+        &[&seed, &get_seed(&test_env.index_seed)],
+        &test_env.program_key.pubkey(),
+    );
 
     let buyer_init_balance = get_token_balance(test_env, test_env.buyer.mint_1.clone()).await;
     let seller_init_balance = get_token_balance(test_env, test_env.seller.mint_2.clone()).await;
@@ -429,10 +438,13 @@ async fn accept_offer(test_env: &mut TestEnv, escrow_pda: EscrowPDA) {
         },
     ];
 
-    let instruction_data = &[1];
+    let mut instruction_data = [0; 42];
+    instruction_data[0] = 1;
+    instruction_data[1..].copy_from_slice(&test_env.index_seed);
 
     println!("sending accept_offer transaction");
-    let ix = Instruction::new_with_bytes(test_env.program_key.pubkey(), instruction_data, accounts);
+    let ix =
+        Instruction::new_with_bytes(test_env.program_key.pubkey(), &instruction_data, accounts);
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&test_env.ctx.payer.pubkey()),
@@ -475,7 +487,10 @@ async fn accept_offer(test_env: &mut TestEnv, escrow_pda: EscrowPDA) {
 
 async fn cancel_offer(test_env: &mut TestEnv, escrow_pda: EscrowPDA, test_close: bool) {
     let seed = escrow_pda.offer_data.get_seed();
-    let (pda, _bump) = Pubkey::find_program_address(&[&seed], &test_env.program_key.pubkey());
+    let (pda, _bump) = Pubkey::find_program_address(
+        &[&seed, &get_seed(&test_env.index_seed)],
+        &test_env.program_key.pubkey(),
+    );
 
     let accounts = vec![
         AccountMeta {
@@ -510,10 +525,13 @@ async fn cancel_offer(test_env: &mut TestEnv, escrow_pda: EscrowPDA, test_close:
         },
     ];
 
-    let instruction_data = &[2];
+    let mut instruction_data = [0; 42];
+    instruction_data[0] = 2;
+    instruction_data[1..].copy_from_slice(&test_env.index_seed);
 
     println!("sending cancel_offer transaction");
-    let ix = Instruction::new_with_bytes(test_env.program_key.pubkey(), instruction_data, accounts);
+    let ix =
+        Instruction::new_with_bytes(test_env.program_key.pubkey(), &instruction_data, accounts);
     let tx = Transaction::new_signed_with_payer(
         &[ix],
         Some(&test_env.ctx.payer.pubkey()),

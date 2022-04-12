@@ -1,5 +1,5 @@
 use arrayref::{array_refs, mut_array_refs};
-use sha2::{Digest, Sha256};
+use sha2::{Digest, Sha224};
 use solana_program::{program_error::ProgramError, program_pack::*, pubkey::Pubkey};
 use std::convert::TryInto;
 
@@ -20,6 +20,7 @@ pub struct EscrowPDA {
 }
 
 impl OfferData {
+    pub const LEN: usize = 80;
     pub fn from_bytes(src: &[u8; 80]) -> Self {
         let (token_type, token_qty, strike_type, strike_qty) = array_refs![src, 32, 8, 32, 8];
         let token_type = Pubkey::new_from_array(*token_type);
@@ -46,7 +47,7 @@ impl OfferData {
         dst
     }
 
-    pub fn get_seed(&self) -> [u8; 32] {
+    pub fn get_seed(&self) -> [u8; 28] {
         get_seed(&self.to_bytes())
     }
 }
@@ -85,9 +86,9 @@ impl Pack for EscrowPDA {
     }
 }
 
-pub fn get_seed(bytes: &[u8; 80]) -> [u8; 32] {
-    let mut hasher = Sha256::new();
+pub fn get_seed(bytes: &[u8]) -> [u8; 28] {
+    let mut hasher = Sha224::new();
     hasher.update(bytes);
-    let seed: [u8; 32] = hasher.finalize().try_into().unwrap();
+    let seed: [u8; 28] = hasher.finalize().try_into().unwrap();
     seed
 }
