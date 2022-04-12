@@ -6,14 +6,10 @@ use std::convert::TryInto;
 pub enum InstructionType {
     OFFER {
         offer_data: OfferData,
-        index_seed: [u8; 28],
+        index_seed: [u8; 32],
     },
-    ACCEPT {
-        index_seed: [u8; 28],
-    },
-    CANCEL {
-        index_seed: [u8; 28],
-    },
+    ACCEPT,
+    CANCEL,
 }
 
 pub fn decode_instruction(instruction_data: &[u8]) -> Result<InstructionType, ProgramError> {
@@ -24,12 +20,8 @@ pub fn decode_instruction(instruction_data: &[u8]) -> Result<InstructionType, Pr
             ),
             index_seed: get_seed(&instruction_data[OfferData::LEN + 1..]),
         }),
-        1 => Ok(InstructionType::ACCEPT {
-            index_seed: get_seed(&instruction_data[1..]),
-        }),
-        2 => Ok(InstructionType::CANCEL {
-            index_seed: get_seed(&instruction_data[1..]),
-        }),
+        1 => Ok(InstructionType::ACCEPT),
+        2 => Ok(InstructionType::CANCEL),
         _ => Err(ProgramError::InvalidInstructionData),
     }
 }

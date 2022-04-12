@@ -329,6 +329,7 @@ async fn create_offer(test_env: &mut TestEnv) -> EscrowPDA {
         seller_main: test_env.seller.main.pubkey(),
         seller_temp: test_env.seller_temp.pubkey(),
         seller_receive: test_env.seller.mint_2.clone(),
+        index_seed: get_seed(&test_env.index_seed),
     };
 
     let pda_acc = test_env

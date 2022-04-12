@@ -1,5 +1,5 @@
 use arrayref::{array_refs, mut_array_refs};
-use sha2::{Digest, Sha224};
+use sha2::{Digest, Sha256};
 use solana_program::{program_error::ProgramError, program_pack::*, pubkey::Pubkey};
 use std::convert::TryInto;
 
@@ -17,6 +17,7 @@ pub struct EscrowPDA {
     pub seller_main: Pubkey,
     pub seller_temp: Pubkey,
     pub seller_receive: Pubkey,
+    pub index_seed: [u8; 32],
 }
 
 impl OfferData {
@@ -47,7 +48,7 @@ impl OfferData {
         dst
     }
 
-    pub fn get_seed(&self) -> [u8; 28] {
+    pub fn get_seed(&self) -> [u8; 32] {
         get_seed(&self.to_bytes())
     }
 }
@@ -55,12 +56,12 @@ impl OfferData {
 impl Sealed for EscrowPDA {}
 
 impl Pack for EscrowPDA {
-    const LEN: usize = 176;
+    const LEN: usize = 208;
 
     fn unpack_from_slice(src: &[u8]) -> Result<Self, ProgramError> {
-        let src: &[u8; 176] = src.try_into().unwrap();
-        let (seller_main, seller_temp, seller_receive, offer_data) =
-            array_refs![src, 32, 32, 32, 80];
+        let src: &[u8; 208] = src.try_into().unwrap();
+        let (seller_main, seller_temp, seller_receive, offer_data, index_seed) =
+            array_refs![src, 32, 32, 32, 80, 32];
         let seller_main = Pubkey::new_from_array(*seller_main);
         let seller_temp = Pubkey::new_from_array(*seller_temp);
         let seller_receive = Pubkey::new_from_array(*seller_receive);
@@ -71,24 +72,26 @@ impl Pack for EscrowPDA {
             seller_main,
             seller_temp,
             seller_receive,
+            index_seed: *index_seed,
         })
     }
 
     fn pack_into_slice(&self, dst: &mut [u8]) {
-        let dst: &mut [u8; 176] = dst.try_into().unwrap();
-        let (seller_main, seller_temp, seller_receive, offer_data) =
-            mut_array_refs![dst, 32, 32, 32, 80];
+        let dst: &mut [u8; 208] = dst.try_into().unwrap();
+        let (seller_main, seller_temp, seller_receive, offer_data, index_seed) =
+            mut_array_refs![dst, 32, 32, 32, 80, 32];
 
         seller_main.copy_from_slice(&self.seller_main.to_bytes());
         seller_temp.copy_from_slice(&self.seller_temp.to_bytes());
         seller_receive.copy_from_slice(&self.seller_receive.to_bytes());
         offer_data.copy_from_slice(&self.offer_data.to_bytes());
+        index_seed.copy_from_slice(&self.index_seed);
     }
 }
 
-pub fn get_seed(bytes: &[u8]) -> [u8; 28] {
-    let mut hasher = Sha224::new();
+pub fn get_seed(bytes: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
     hasher.update(bytes);
-    let seed: [u8; 28] = hasher.finalize().try_into().unwrap();
+    let seed: [u8; 32] = hasher.finalize().try_into().unwrap();
     seed
 }

@@ -19,7 +19,7 @@ pub fn process_instruction(
             offer_data,
             index_seed,
         } => create_offer(program_id, accounts, offer_data, index_seed),
-        ACCEPT { index_seed } => accept_offer(program_id, accounts, index_seed),
-        CANCEL { index_seed } => cancel_offer(program_id, accounts, index_seed),
+        ACCEPT => accept_offer(program_id, accounts),
+        CANCEL => cancel_offer(program_id, accounts),
     }
 }
